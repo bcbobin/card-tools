@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-D&D 5e Spell Scraper
+D&D 2024 Spell Scraper
 Extracts spell data from Wikidot spell databases and saves to JSON.
 Also saves raw HTML for debugging/reprocessing.
 
 Usage:
     cd scraper
     pip install -r requirements.txt
-    python scrape_spells.py                  # Scrape 2014 spells (dnd5e.wikidot.com)
-    python scrape_spells.py --site 2024      # Scrape 2024 spells (dnd2024.wikidot.com)
+    python scrape_spells.py                  # Scrape 2024 spells (dnd2024.wikidot.com)
     python scrape_spells.py --reparse        # Reparse from saved HTML (no network)
 
 Output:
-    spells.json / spells_2024.json  - Spell database
-    raw_html/ / raw_html_2024/      - Cached HTML for each spell page
+    spells_2024.json  - Spell database
+    raw_html_2024/    - Cached HTML for each spell page
 """
 
 import argparse
@@ -37,73 +36,20 @@ SPELL_CLASSES = [
 SCHOOLS = ["abjuration", "conjuration", "divination", "enchantment",
            "evocation", "illusion", "necromancy", "transmutation"]
 
-SOURCE_MAP_2014 = {
-    "player's handbook": "PHB",
-    "xanathar's guide to everything": "XGE",
-    "tasha's cauldron of everything": "TCE",
-    "sword coast adventurer's guide": "SCAG",
-    "explorer's guide to wildemount": "EGW",
-    "fizban's treasury of dragons": "FTD",
-    "strixhaven: a curriculum of chaos": "SCC",
-    "acquisitions incorporated": "AI",
-    "elemental evil player's companion": "EEPC",
-}
-
-SOURCE_MAP_2024 = {
+SOURCE_MAP = {
     "player's handbook": "PHB24",
     "dungeon master's guide": "DMG24",
     "free rules": "Free24",
 }
 
 # Classes that have subclass spell lists
-SUBCLASS_CLASSES = {
-    "2014": ["cleric", "druid", "paladin", "ranger", "sorcerer", "warlock"],
-    "2024": ["cleric", "druid", "paladin", "ranger", "sorcerer", "warlock"],
-}
+SUBCLASS_CLASSES = ["cleric", "druid", "paladin", "ranger", "sorcerer", "warlock"]
 
-SITE_CONFIGS = {
-    "2014": {
-        "base_url": "http://dnd5e.wikidot.com",
-        "spell_list_path": "/spells",
-        "raw_html_dir": Path(__file__).parent / "raw_html",
-        "output_file": Path(__file__).parent / "spells.json",
-        "label": "D&D 5e (2014)",
-        "default_source": "PHB",
-        "source_map": SOURCE_MAP_2014,
-    },
-    "2024": {
-        "base_url": "http://dnd2024.wikidot.com",
-        "spell_list_path": "/spell:all",
-        "raw_html_dir": Path(__file__).parent / "raw_html_2024",
-        "output_file": Path(__file__).parent / "spells_2024.json",
-        "label": "D&D 5e (2024)",
-        "default_source": "PHB24",
-        "source_map": SOURCE_MAP_2024,
-    },
-}
-
-# Module-level state set by configure_site()
-BASE_URL = ""
-SPELL_LIST_URL = ""
-RAW_HTML_DIR = Path()
-OUTPUT_FILE = Path()
-SITE = "2014"
-DEFAULT_SOURCE = "PHB"
-SOURCE_MAP = {}
-
-
-def configure_site(site: str):
-    """Set module-level variables based on the chosen site."""
-    global BASE_URL, SPELL_LIST_URL, RAW_HTML_DIR, OUTPUT_FILE
-    global SITE, DEFAULT_SOURCE, SOURCE_MAP
-    config = SITE_CONFIGS[site]
-    BASE_URL = config["base_url"]
-    SPELL_LIST_URL = config["base_url"] + config["spell_list_path"]
-    RAW_HTML_DIR = config["raw_html_dir"]
-    OUTPUT_FILE = config["output_file"]
-    SITE = site
-    DEFAULT_SOURCE = config["default_source"]
-    SOURCE_MAP = config["source_map"]
+BASE_URL = "http://dnd2024.wikidot.com"
+SPELL_LIST_URL = f"{BASE_URL}/spell:all"
+RAW_HTML_DIR = Path(__file__).parent / "raw_html_2024"
+OUTPUT_FILE = Path(__file__).parent / "spells_2024.json"
+DEFAULT_SOURCE = "PHB24"
 
 
 def get_soup(url: str) -> BeautifulSoup:
@@ -224,17 +170,6 @@ def parse_spell_html(html: str, name: str) -> dict | None:
                     spell["ritual"] = "(ritual)" in text
                     break
 
-                # 2014 format: "3rd-level evocation"
-                level_match = re.search(r"(\d+)(?:st|nd|rd|th)[- ]level", text)
-                if level_match:
-                    spell["level"] = int(level_match.group(1))
-                    for school in SCHOOLS:
-                        if school in text:
-                            spell["school"] = school.capitalize()
-                            break
-                    spell["ritual"] = "(ritual)" in text
-                    break
-
                 # 2024 format: "Level 3 Evocation"
                 level_match = re.search(r"level (\d+)", text)
                 if level_match:
@@ -293,8 +228,7 @@ def parse_spell_html(html: str, name: str) -> dict | None:
         # Check for concentration in duration
         spell["concentration"] = "concentration" in spell["duration"].lower()
 
-        # Check for ritual — 2014 puts "(ritual)" in level line (already handled above),
-        # 2024 puts "or Ritual" in casting time
+        # 2024 rules put "or Ritual" in casting time.
         if not spell["ritual"] and "ritual" in spell["casting_time"].lower():
             spell["ritual"] = True
 
@@ -316,7 +250,7 @@ def parse_spell_html(html: str, name: str) -> dict | None:
             # Skip level/school line (detected by <em> tag containing level/school pattern)
             if p.find("em"):
                 em_text = p.find("em").get_text(strip=True).lower()
-                if "cantrip" in em_text or re.search(r"(\d+)(?:st|nd|rd|th)[- ]level|level \d+", em_text):
+                if "cantrip" in em_text or re.search(r"level \d+", em_text):
                     continue
 
             # Skip stat block paragraph
@@ -324,7 +258,7 @@ def parse_spell_html(html: str, name: str) -> dict | None:
                 found_stat_block = True
                 continue
 
-            # Stop at class list — 2014 format has "Spell Lists." section at bottom
+            # Stop at a spell-list section if present.
             if "spell list" in text_lower and p.find("a"):
                 # Extract classes from links
                 spell["classes"] = []
@@ -339,12 +273,9 @@ def parse_spell_html(html: str, name: str) -> dict | None:
             if found_spell_lists:
                 continue
 
-            # Check for "At Higher Levels" (2014) or "Using a Higher-Level Spell Slot" (2024)
-            if re.search(r"at higher levels\.?", text_lower) or re.search(r"using a higher[- ]level spell slot\.?", text_lower):
+            # 2024 uses "Using a Higher-Level Spell Slot".
+            if re.search(r"using a higher[- ]level spell slot\.?", text_lower):
                 inner_html = p.decode_contents()
-                # Remove the bold/italic label — various HTML nesting orders
-                inner_html = re.sub(r"<strong>\s*<em>\s*At Higher Levels\.?\s*</em>\s*</strong>", "", inner_html, flags=re.IGNORECASE)
-                inner_html = re.sub(r"<em>\s*<strong>\s*At Higher Levels\.?\s*</strong>\s*</em>", "", inner_html, flags=re.IGNORECASE)
                 inner_html = re.sub(r"<strong>\s*Using a Higher[- ]Level Spell Slot\.?\s*</strong>", "", inner_html, flags=re.IGNORECASE)
                 at_higher_levels_html = inner_html.strip()
                 continue
@@ -400,8 +331,7 @@ def get_subclass_urls(class_name: str) -> list[dict]:
     seen = set()
     for link in content.find_all("a"):
         href = link.get("href", "")
-        # Subclass links: absolute (2014) or relative (2024)
-        # e.g. "http://dnd5e.wikidot.com/cleric:knowledge" or "/cleric:knowledge"
+        # 2024 subclass links are relative, e.g. "/cleric:knowledge".
         # Normalize to get the slug
         slug = ""
         if f"/{class_name}:" in href:
@@ -503,7 +433,7 @@ def build_wikidot_subclass_map() -> dict[str, set[str]]:
     """Scrape subclass pages and build spell name -> subclass labels mapping."""
     print("Fetching subclass spell data...")
 
-    classes = SUBCLASS_CLASSES.get(SITE, [])
+    classes = SUBCLASS_CLASSES
     spell_subclasses: dict[str, set[str]] = {}
 
     for class_name in classes:
@@ -573,18 +503,13 @@ def scrape_all_spells(reparse_only: bool = False) -> list[dict]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape D&D 5e spells from Wikidot")
-    parser.add_argument("--site", choices=["2014", "2024"], default="2014",
-                        help="Which site to scrape: 2014 (dnd5e.wikidot.com) or 2024 (dnd2024.wikidot.com)")
+    parser = argparse.ArgumentParser(description="Scrape D&D 2024 spells from Wikidot")
     parser.add_argument("--reparse", action="store_true",
                         help="Reparse from saved HTML files (no network requests)")
     args = parser.parse_args()
 
-    configure_site(args.site)
-
-    label = SITE_CONFIGS[args.site]["label"]
     print("=" * 50)
-    print(f"D&D Spell Scraper — {label}")
+    print("D&D 2024 Spell Scraper")
     print(f"Source: {BASE_URL}")
     print("=" * 50)
 

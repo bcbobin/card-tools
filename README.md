@@ -1,12 +1,12 @@
-# D&D 5e Spell Card Generator
+# D&D 2024 Spell Card Generator
 
-A free web tool for generating printable spell cards for D&D 5th Edition.
+A free web tool for generating printable spell cards for the 2024 D&D rules revision.
 
 **[Use it now](https://spell-cards.pages.dev/)**
 
 ## Features
 
-- **319 SRD spells** included out of the box, covering all levels and most classes
+- **339 D&D SRD 5.2 spells** included out of the box, covering all levels and most classes
 - **Filter** by class, spell level, school of magic, or source book
 - **Color-coding modes**: By School, By Spell Level, By Class (highlight mode), or Monochrome — with customizable class color palette
 - **Multi-card splitting** for long spell descriptions instead of truncating
@@ -17,11 +17,21 @@ A free web tool for generating printable spell cards for D&D 5th Edition.
 - **Share spell lists** via URL, clipboard text, or JSON export/import
 - **Save & load** spell lists in your browser
 - **Create custom spells** directly in the browser with Markdown formatting support
-- **Load your own data** — bring a complete spell list with the included scraper tool
+- **Load all official spell sources** — core books and supplements, without playtest material
+
+## Running locally
+
+Serve the project directory over HTTP, then open the local URL in your browser:
+
+```bash
+python3 -m http.server 8000
+```
+
+Open <http://localhost:8000/>. Opening `index.html` directly may display the interface, but the browser will block loading the bundled spell data.
 
 ## Custom Spell Data
 
-The site ships with spells from the [SRD 5.1](https://media.wizards.com/2016/downloads/DND/SRD-OGL_V5.1.pdf) (freely licensed under CC-BY-4.0). For the full 900+ spell list from every WotC sourcebook, you can generate your own data using the [scraper tools](scraper/).
+The site ships with spells from the [D&D SRD 5.2.1](https://www.dndbeyond.com/srd), licensed under CC-BY-4.0. Its 5etools importer loads every official core and supplemental source in the upstream spell index—including future releases—excludes playtest material, and prefers current-rule versions when spell names overlap. You can also generate this list with the included [scraper tools](scraper/).
 
 ## Planned Features
 
@@ -33,7 +43,7 @@ Issues and pull requests are welcome!
 
 ## License
 
-- **Spell data**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) (Wizards of the Coast, via the SRD 5.1)
+- **Spell data**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) (Wizards of the Coast, via the D&D SRD 5.2)
 - **Code**: [MIT](https://opensource.org/licenses/MIT)
 
 ## Support

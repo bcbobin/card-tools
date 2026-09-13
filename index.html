@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D&D 5e Spell Card Generator</title>
+    <title>D&D 2024 Spell Card Generator</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,11 @@
             --card-width: 2.75in;
             --card-height: 4.75in;
             --card-padding: 0.15in;
-            --border-radius: 8px;
+            --border-radius: 12px;
+            /* Whole PDF points keep every print row on the same vertical
+               coordinate phase instead of accumulating sub-pixel rounding. */
+            --print-column-gap: 2pt;
+            --print-row-gap: 2pt;
 
             /* Font sizes (medium default) */
             --font-name: 11pt;
@@ -428,9 +432,10 @@
         .spell-card {
             width: var(--card-width);
             height: var(--card-height);
-            padding: var(--card-padding);
+            padding: calc(var(--card-padding) - 1px);
+            box-sizing: border-box;
             background: white;
-            border: 2px solid #333;
+            border: 3px solid #333;
             border-radius: var(--border-radius);
             display: flex;
             flex-direction: column;
@@ -459,6 +464,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             flex: 1;
+            min-width: 0;
             word-wrap: break-word;
         }
 
@@ -470,11 +476,23 @@
             width: var(--level-size);
             height: var(--level-size);
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: grid;
+            place-items: center;
+            padding: 0;
+            line-height: 1;
+            text-align: center;
             flex-shrink: 0;
         }
+
+        /* Font ascenders make the numeral look high even when its line box is
+           mathematically centered. Move only the glyph, not its circular badge. */
+.card-level-value {
+  display: block;
+  /* Keep the optical adjustment stable in PDF output; fractional transforms
+     can be rounded differently at different page positions. */
+  position: relative;
+  top: 1px;
+}
 
         .card-school {
             font-size: var(--font-school);
@@ -955,7 +973,7 @@
         .card-back {
             width: var(--card-width);
             height: var(--card-height);
-            border: 2px solid var(--back-color, #5c1d91);
+            border: 3px solid var(--back-color, #5c1d91);
             border-radius: var(--border-radius);
             display: flex;
             align-items: center;
@@ -1008,7 +1026,8 @@
             .cards-container {
                 display: grid;
                 grid-template-columns: repeat(2, var(--card-width));
-                gap: 0.1in;
+                column-gap: var(--print-column-gap);
+                row-gap: var(--print-row-gap);
                 justify-content: center;
                 padding: 0;
             }
@@ -1027,19 +1046,6 @@
                 print-color-adjust: exact;
             }
 
-            /* Cut guides */
-            .spell-card::before {
-                content: '';
-                position: absolute;
-                top: -2px;
-                left: -2px;
-                right: -2px;
-                bottom: -2px;
-                border: 1px dashed #ccc;
-                border-radius: calc(var(--border-radius) + 2px);
-                pointer-events: none;
-            }
-
             /* Page wrappers for duplex printing */
             .cards-container.has-backs {
                 display: block;
@@ -1048,7 +1054,8 @@
             .front-page, .back-page {
                 display: grid;
                 grid-template-columns: repeat(2, var(--card-width));
-                gap: 0.1in;
+                column-gap: var(--print-column-gap);
+                row-gap: var(--print-row-gap);
                 justify-content: center;
                 break-after: page;
             }
@@ -1063,23 +1070,11 @@
             .size-max6 .front-page, .size-max6 .back-page {
                 grid-template-columns: repeat(3, var(--card-width));
             }
-
-            .card-back::before {
-                content: '';
-                position: absolute;
-                top: -2px;
-                left: -2px;
-                right: -2px;
-                bottom: -2px;
-                border: 1px dashed #ccc;
-                border-radius: calc(var(--border-radius) + 2px);
-                pointer-events: none;
-            }
         }
 
         @page {
             size: letter;
-            margin: 0.1in;
+            margin: 0.2in 0.1in 0.1in;
         }
 
         /* Loading indicator */
@@ -1119,16 +1114,16 @@
 </head>
 <body>
     <div class="ui-container">
-        <h1>D&D 5e Spell Card Generator</h1>
+        <h1>D&D 2024 Spell Card Generator</h1>
 
         <div id="status" role="status" aria-live="polite"></div>
 
         <div id="srdBanner" class="status info" style="display:none;">
             <span id="srdBannerText">
-                Showing spells from the 5e SRD.
+                Showing spells from D&D SRD 5.2.
                 Want more? Use the <a href="https://github.com/MugaSofer/spell-cards/tree/main/scraper" target="_blank">scraper tool</a>
                 to generate your own data, then load it below; or
-                <a href="#" id="load5etools">load all available spells from 5etools</a>.
+                <a href="#" id="load5etools">load all official spells from 5etools</a>.
             </span>
         </div>
 
@@ -1193,15 +1188,6 @@
                     <option value="Necromancy">Necromancy</option>
                     <option value="Transmutation">Transmutation</option>
                 </select>
-            </div>
-
-            <div class="control-group">
-                <label>Edition</label>
-                <div style="display:flex; gap:10px;">
-                    <label><input type="radio" name="edition" value="2014" checked> 2014</label>
-                    <label><input type="radio" name="edition" value="2024"> 2024</label>
-                    <label><input type="radio" name="edition" value=""> All</label>
-                </div>
             </div>
 
             <div class="control-group">
@@ -1612,7 +1598,7 @@
         </p>
         <p style="margin:0;">
             Spell data from the
-            <a href="https://media.wizards.com/2016/downloads/DND/SRD-OGL_V5.1.pdf" target="_blank">D&D 5e Systems Reference Document 5.1</a>,
+            <a href="https://www.dndbeyond.com/srd" target="_blank">D&D System Reference Document 5.2.1</a>,
             licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC-BY-4.0</a>
             by Wizards of the Coast.
         </p>
@@ -1634,6 +1620,8 @@
         // Global state
         let allSpells = [];
         let selectedSpells = new Set();
+        const SELECTED_SPELLS_KEY = 'selectedSpells';
+        let selectedSpellsRestored = false;
 
         // Card layout options. `sizes` holds only the values the user has moved
         // away from the current Font Size preset; anything absent follows the preset.
@@ -2408,83 +2396,40 @@
         // Populate source dropdown from loaded spell data
         const SOURCE_LABELS = {
             'PHB': "Player's Handbook (2014)",
-            'XPHB': "Player's Handbook (2024)",
-            'XGE': "Xanathar's Guide to Everything",
-            'TCE': "Tasha's Cauldron of Everything",
-            'FTD': "Fizban's Treasury of Dragons",
-            'SCC': "Strixhaven: A Curriculum of Chaos",
-            'GGR': "Guildmaster's Guide to Ravnica",
-            'EGW': "Explorer's Guide to Wildemount",
-            'IDRotF': "Icewind Dale: Rime of the Frostmaiden",
             'AAG': "Astral Adventurer's Guide",
-            'AI': "Acquisitions Incorporated",
-            'BMT': "The Book of Many Things",
-            'LLK': "Lost Laboratory of Kwalish",
+            'AI': 'Acquisitions Incorporated',
+            'AitFR-AVT': 'Adventures in the Forgotten Realms: A Verdant Tomb',
+            'BMT': 'The Book of Many Things',
+            'EGW': "Explorer's Guide to Wildemount",
+            'FTD': "Fizban's Treasury of Dragons",
+            'GGR': "Guildmasters' Guide to Ravnica",
+            'IDRotF': 'Icewind Dale: Rime of the Frostmaiden',
+            'LLK': 'Lost Laboratory of Kwalish',
+            'SatO': 'Sigil and the Outlands',
+            'SCC': 'Strixhaven: A Curriculum of Chaos',
+            'TCE': "Tasha's Cauldron of Everything",
+            'XGE': "Xanathar's Guide to Everything",
+            'XPHB': "Player's Handbook (2024)",
             'EFA': "Eberron: Forge of the Artificer",
-            'SatO': "Sigil and the Outlands",
             'FRHoF': "Forgotten Realms: Heroes of Faerûn",
-            'AitFR-AVT': "Adventures in the FR: A Verdant Tomb",
-            'SRD': 'SRD (2014)',
-            'SRD 2024': 'SRD (2024)',
+            'SRD': 'D&D SRD 5.2',
         };
 
-        const EDITION_2014_SOURCES = new Set([
-            'PHB', 'XGE', 'TCE', 'FTD', 'SCC', 'GGR', 'EGW', 'IDRotF',
-            'AAG', 'AI', 'BMT', 'LLK', 'AitFR-AVT', 'SatO', 'SRD',
-        ]);
-        const EDITION_2024_SOURCES = new Set(['XPHB', 'SRD 2024', 'EFA', 'FRHoF']);
-
-        function getSpellEdition(source) {
-            if (EDITION_2014_SOURCES.has(source)) return '2014';
-            if (EDITION_2024_SOURCES.has(source)) return '2024';
-            return 'unknown';
-        }
-
-        function getSelectedEdition() {
-            const checked = document.querySelector('input[name="edition"]:checked');
-            return checked ? checked.value : '';
-        }
-
-        function spellMatchesEdition(spell, edition) {
-            return !edition || getSpellEdition(spell.source) === edition;
-        }
-
         function populateSourceDropdown() {
-            const edition = getSelectedEdition();
-            const sources = new Set();
-            allSpells.forEach(s => {
-                if (spellMatchesEdition(s, edition)) sources.add(s.source || 'PHB');
-            });
+            const sources = new Set(allSpells.map(s => s.source || 'SRD'));
 
             let html = '<option value="">-- All Sources --</option>';
-            if (!edition) {
-                // Group by edition when showing all
-                const groups = { '2014': [], '2024': [], 'unknown': [] };
-                for (const s of sources) {
-                    groups[getSpellEdition(s)].push(s);
-                }
-                for (const [ed, label] of [['2014', '2014'], ['2024', '2024'], ['unknown', 'Other']]) {
-                    const sorted = groups[ed].sort();
-                    if (sorted.length === 0) continue;
-                    html += `<optgroup label="${label}">`;
-                    html += sorted.map(s => `<option value="${s}">${SOURCE_LABELS[s] || s}</option>`).join('');
-                    html += '</optgroup>';
-                }
-            } else {
-                const sorted = Array.from(sources).sort();
-                html += sorted.map(s => `<option value="${s}">${SOURCE_LABELS[s] || s}</option>`).join('');
-            }
+            const sorted = Array.from(sources).sort();
+            html += sorted.map(s => `<option value="${s}">${SOURCE_LABELS[s] || s}</option>`).join('');
             sourceSelect.innerHTML = html;
         }
 
-        // Populate subclass dropdown, optionally filtered by class and edition
+        // Populate subclass dropdown, optionally filtered by class
         function populateSubclassDropdown() {
             const classFilter = classSelect.value;
-            const edition = getSelectedEdition();
             // Collect all subclass labels from spell data
             const byClass = {};
             allSpells.forEach(s => {
-                if (!spellMatchesEdition(s, edition)) return;
                 if (!s.subclasses) return;
                 s.subclasses.forEach(sc => {
                     const colonIdx = sc.indexOf(':');
@@ -2525,7 +2470,7 @@
         function updateClassWarning() {
             const warning = document.getElementById('classWarning');
             const cls = classSelect.value;
-            const isSrdOnly = allSpells.length > 0 && allSpells.every(s => s.source === 'SRD' || s.source === 'SRD 2024' || s.source === 'Custom');
+            const isSrdOnly = allSpells.length > 0 && allSpells.every(s => s.source === 'SRD' || s.source === 'Custom');
             if (isSrdOnly && SRD_LIMITED_CLASSES.has(cls)) {
                 warning.textContent = `Warning: The SRD is missing key ${cls} spells. Loading from 5etools is recommended.`;
                 warning.style.display = 'block';
@@ -2538,15 +2483,6 @@
             populateSubclassDropdown();
             subclassSelect.value = '';
             updateClassWarning();
-        });
-
-        document.querySelectorAll('input[name="edition"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                populateSourceDropdown();
-                populateSubclassDropdown();
-                sourceSelect.value = '';
-                subclassSelect.value = '';
-            });
         });
 
         // Load spells from file
@@ -2564,6 +2500,7 @@
                 document.getElementById('srdBanner').style.display = 'none';
                 populateSourceDropdown();
                 populateSubclassDropdown();
+                restoreSelectedSpells();
                 showStatus(`Loaded ${allSpells.length} spells successfully!`, 'success');
             } catch (err) {
                 showStatus(`Error loading file: ${err.message}`, 'error');
@@ -2576,9 +2513,43 @@
         const FT_SCHOOL_MAP = {A:'Abjuration',C:'Conjuration',D:'Divination',E:'Enchantment',
                                I:'Illusion',N:'Necromancy',T:'Transmutation',V:'Evocation'};
         const FT_CLASSES = new Set(['Artificer','Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard']);
+        const FT_CURRENT_SOURCE_CODES = new Set(['XPHB', 'EFA', 'FRHoF']);
+        const FT_NON_OFFICIAL_SOURCE_CODES = new Set(['AU']);
+        const FT_NON_OFFICIAL_SOURCE_PREFIXES = ['UA'];
         const FT_CACHE_KEY = 'fivetools_spells';
         const FT_META_KEY = 'fivetools_meta';
+        const FT_CACHE_VERSION = 6;
         const FT_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+        function ft_isOfficialSourceCode(sourceCode) {
+            const normalized = String(sourceCode || '').toUpperCase();
+            return Boolean(normalized) &&
+                !FT_NON_OFFICIAL_SOURCE_CODES.has(normalized) &&
+                !FT_NON_OFFICIAL_SOURCE_PREFIXES.some(prefix => normalized.startsWith(prefix));
+        }
+
+        function ft_isOfficialSpell(spell) {
+            return ft_isOfficialSourceCode(spell?.source);
+        }
+
+        function ft_deduplicateSpells(spells) {
+            const selected = new Map();
+            for (const spell of spells) {
+                const key = (spell.name || '').toLocaleLowerCase('en-US');
+                const existing = selected.get(key);
+                if (!existing) {
+                    selected.set(key, spell);
+                    continue;
+                }
+
+                const existingIsCurrent = FT_CURRENT_SOURCE_CODES.has(existing.source);
+                const candidateIsCurrent = FT_CURRENT_SOURCE_CODES.has(spell.source);
+                if (candidateIsCurrent && !existingIsCurrent) {
+                    selected.set(key, spell);
+                }
+            }
+            return Array.from(selected.values());
+        }
 
         function ft_cleanTags(text) {
             if (typeof text !== 'string') return String(text || '');
@@ -2844,6 +2815,7 @@
                 const data = result.value;
                 const subclasses = data.subclass || [];
                 for (const sc of subclasses) {
+                    if (!FT_CURRENT_SOURCE_CODES.has(sc.source)) continue;
                     const additional = sc.additionalSpells;
                     if (!additional) continue;
                     const className = sc.className || '';
@@ -2877,8 +2849,10 @@
                 fetch(`${FT_BASE}/sources.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
             ]);
 
-            // Phase 2: Fetch all spell source files
-            const spellFiles = Object.entries(spellIndex);
+            // Phase 2: Fetch every indexed official source, including future
+            // releases. Known playtest source codes are excluded.
+            const spellFiles = Object.entries(spellIndex)
+                .filter(([code]) => ft_isOfficialSourceCode(code));
             progressFn(`Loading ${spellFiles.length} spell sources...`);
             const spellResults = await Promise.allSettled(
                 spellFiles.map(([code, file]) =>
@@ -2908,10 +2882,13 @@
             progressFn('Converting spells...');
             const rawSpells = spellResults
                 .filter(r => r.status === 'fulfilled')
-                .flatMap(r => r.value.spells);
+                .flatMap(r => r.value.spells)
+                .filter(ft_isOfficialSpell);
             const failedCount = spellResults.filter(r => r.status === 'rejected').length;
 
-            const converted = rawSpells.map(raw => ft_convertSpell(raw, sourcesData, subclassMap));
+            const converted = ft_deduplicateSpells(
+                rawSpells.map(raw => ft_convertSpell(raw, sourcesData, subclassMap))
+            );
             converted.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
 
             return { spells: converted, failedCount };
@@ -2921,7 +2898,7 @@
             const banner = document.getElementById('srdBanner');
             const bannerText = document.getElementById('srdBannerText');
             banner.style.display = 'block';
-            bannerText.innerHTML = `Showing <strong>${count}</strong> spells from 5etools. ` +
+            bannerText.innerHTML = `Showing <strong>${count}</strong> official spells from 5etools. ` +
                 `<a href="#" id="revert5etools">Revert to SRD spells</a>`;
         }
 
@@ -2930,10 +2907,10 @@
             const bannerText = document.getElementById('srdBannerText');
             banner.style.display = 'block';
             bannerText.innerHTML =
-                `Showing spells from the 5e SRD. ` +
+                `Showing spells from D&D SRD 5.2. ` +
                 `Want more? Use the <a href="https://github.com/MugaSofer/spell-cards/tree/main/scraper" target="_blank">scraper tool</a> ` +
                 `to generate your own data, then load it below; or ` +
-                `<a href="#" id="load5etools">load all available spells from 5etools</a>.`;
+                `<a href="#" id="load5etools">load all official spells from 5etools</a>.`;
         }
 
         async function startLoad5etools() {
@@ -2950,7 +2927,7 @@
                 try {
                     localStorage.setItem(FT_CACHE_KEY, JSON.stringify(spells));
                     localStorage.setItem(FT_META_KEY, JSON.stringify({
-                        version: 1, timestamp: Date.now(), count: spells.length
+                        version: FT_CACHE_VERSION, timestamp: Date.now(), count: spells.length
                     }));
                 } catch (storageErr) {
                     console.warn('Could not cache 5etools data:', storageErr);
@@ -2961,9 +2938,10 @@
                 loadCustomSpells();
                 populateSourceDropdown();
                 populateSubclassDropdown();
+                restoreSelectedSpells();
                 show5etoolsBanner(spells.length);
 
-                let msg = `Loaded ${spells.length} spells from 5etools!`;
+                let msg = `Loaded ${spells.length} official spells from 5etools!`;
                 if (failedCount > 0) msg += ` (${failedCount} sources skipped due to errors)`;
                 showStatus(msg, 'success');
             } catch (err) {
@@ -2978,7 +2956,7 @@
             localStorage.removeItem(FT_CACHE_KEY);
             localStorage.removeItem(FT_META_KEY);
             try {
-                const resp = await fetch('srd_spells.json');
+                const resp = await fetch('srd_spells_2024.json');
                 if (resp.ok) {
                     allSpells = await resp.json();
                     loadCustomSpells();
@@ -3003,7 +2981,7 @@
             }
         });
 
-        // Try to load SRD spells on page load, fall back to full spells.json
+        // Try to load the bundled 2024 SRD spells on page load.
         async function tryLoadDefaultSpells() {
             if (window.location.protocol === 'file:') {
                 showStatus('Click "Load custom spells.json" to load spell data.', 'info');
@@ -3013,50 +2991,47 @@
             // Check for cached 5etools data first
             try {
                 const meta = JSON.parse(localStorage.getItem(FT_META_KEY));
-                if (meta && meta.version === 1 && (Date.now() - meta.timestamp) < FT_CACHE_MAX_AGE) {
+                if (meta && meta.version !== FT_CACHE_VERSION) {
+                    localStorage.removeItem(FT_CACHE_KEY);
+                    localStorage.removeItem(FT_META_KEY);
+                }
+                if (meta && meta.version === FT_CACHE_VERSION && (Date.now() - meta.timestamp) < FT_CACHE_MAX_AGE) {
                     const cached = localStorage.getItem(FT_CACHE_KEY);
                     if (cached) {
-                        allSpells = JSON.parse(cached);
-                        populateSourceDropdown();
-                        populateSubclassDropdown();
-                        loadCustomSpells();
-                        await loadSpellsFromURL();
-                        show5etoolsBanner(allSpells.length);
-                        return;
+                        const cachedSpells = JSON.parse(cached);
+                        if (Array.isArray(cachedSpells)) {
+                            const uniqueNames = new Set(cachedSpells.map(
+                                spell => (spell.name || '').toLocaleLowerCase('en-US')
+                            ));
+                            if (cachedSpells.every(ft_isOfficialSpell) &&
+                                uniqueNames.size === cachedSpells.length) {
+                                allSpells = cachedSpells;
+                                populateSourceDropdown();
+                                populateSubclassDropdown();
+                                loadCustomSpells();
+                                restoreSelectedSpells();
+                                await loadSpellsFromURL();
+                                show5etoolsBanner(allSpells.length);
+                                return;
+                            }
+                        }
+                        localStorage.removeItem(FT_CACHE_KEY);
+                        localStorage.removeItem(FT_META_KEY);
                     }
                 }
             } catch (e) { console.warn('Cached 5etools data could not be used:', e); }
 
             try {
-                // Try SRD spells first (shipped with the site)
-                let resp = await fetch('srd_spells.json');
+                const resp = await fetch('srd_spells_2024.json');
                 if (resp.ok) {
                     allSpells = await resp.json();
-                    // Also load 2024 SRD if available
-                    try {
-                        const resp2024 = await fetch('srd_spells_2024.json');
-                        if (resp2024.ok) {
-                            const spells2024 = await resp2024.json();
-                            spells2024.forEach(s => s.source = 'SRD 2024');
-                            allSpells = allSpells.concat(spells2024);
-                        }
-                    } catch (e) { console.warn('2024 SRD data unavailable; continuing with 2014 only:', e); }
                     showSrdBanner();
                     populateSourceDropdown();
                     populateSubclassDropdown();
                     loadCustomSpells();
+                    restoreSelectedSpells();
                     await loadSpellsFromURL();
                     return;
-                }
-                // Fall back to full spells.json if present
-                resp = await fetch('spells.json');
-                if (resp.ok) {
-                    allSpells = await resp.json();
-                    populateSourceDropdown();
-                populateSubclassDropdown();
-                    loadCustomSpells();
-                    await loadSpellsFromURL();
-                    showStatus(`Loaded ${allSpells.length} spells from spells.json`, 'success');
                 }
             } catch (e) {
                 console.warn('Default spell data could not be loaded:', e);
@@ -3113,15 +3088,13 @@
                 return;
             }
 
-            const edition = getSelectedEdition();
             let added = 0;
             allSpells.forEach(spell => {
-                if (!spellMatchesEdition(spell, edition)) return;
                 if (!levels.includes(spell.level)) return;
                 if (selectedClass && !(spell.classes && spell.classes.includes(selectedClass))) return;
                 if (selectedSubclass && !(spell.subclasses && spell.subclasses.includes(selectedSubclass))) return;
                 if (selectedSchool && spell.school !== selectedSchool) return;
-                if (selectedSource && (spell.source || 'PHB') !== selectedSource) return;
+                if (selectedSource && (spell.source || 'SRD') !== selectedSource) return;
 
                 if (!selectedSpells.has(spell.name)) {
                     selectedSpells.add(spell.name);
@@ -3161,9 +3134,8 @@
                 return;
             }
 
-            const edition = getSelectedEdition();
             const matches = allSpells
-                .filter(s => spellMatchesEdition(s, edition) && s.name.toLowerCase().includes(query))
+                .filter(s => s.name.toLowerCase().includes(query))
                 .slice(0, 10);
 
             if (matches.length === 0) {
@@ -3243,6 +3215,12 @@
         }
 
         function updateSelectedSpellsList() {
+            try {
+                localStorage.setItem(SELECTED_SPELLS_KEY, JSON.stringify(Array.from(selectedSpells)));
+            } catch (e) {
+                console.warn('Selected spells could not be cached:', e);
+            }
+
             spellCount.textContent = selectedSpells.size;
 
             if (selectedSpells.size === 0) {
@@ -3279,6 +3257,24 @@
             });
 
             generateCards();
+        }
+
+        function restoreSelectedSpells() {
+            if (!selectedSpellsRestored) {
+                selectedSpellsRestored = true;
+
+                try {
+                    const saved = JSON.parse(localStorage.getItem(SELECTED_SPELLS_KEY) || '[]');
+                    if (Array.isArray(saved)) {
+                        selectedSpells = new Set(saved.filter(name => typeof name === 'string'));
+                    }
+                } catch (e) {
+                    console.warn('Saved selected spells could not be read:', e);
+                }
+            }
+
+            // Also redraw after spell data changes, once names can resolve to cards.
+            updateSelectedSpellsList();
         }
 
         // Clear all
@@ -3765,11 +3761,11 @@
             if (spell.concentration) badges.push('<span class="badge concentration">Conc.</span>');
 
             return `
-                <div class="spell-card" data-school="${spell.school}" data-source="${spell.source || 'PHB'}" data-level="${spell.level}">
+                <div class="spell-card" data-school="${spell.school}" data-source="${spell.source || 'SRD'}" data-level="${spell.level}">
                     <div class="card-header">
                         <div class="card-title-row">
                             <span class="card-name">${spell.name}</span>
-                            <span class="card-level">${levelDisplay}</span>
+                            <span class="card-level"><span class="card-level-value">${levelDisplay}</span></span>
                         </div>
                         <div class="card-school-row">
                             <div class="card-school">${schoolLine}</div>
@@ -3887,7 +3883,7 @@
                 const body = card.querySelector('.card-body');
                 const desc = card.querySelector('.card-description');
                 const descContent = card.querySelector('.desc-content');
-                const source = card.dataset.source || 'PHB';
+                const source = card.dataset.source || 'SRD';
 
                 if (!body || !desc || !descContent) return;
 
@@ -4120,6 +4116,10 @@
             customSpellForm.classList.remove('active');
             showStatus(`Added custom spell "${spell.name}"`, 'success');
         });
+
+        // Restore immediately. This keeps the selection even when spell-data loading
+        // is delayed or unavailable; data loaders redraw it once they finish.
+        restoreSelectedSpells();
 
         // Everything above is declared; safe to load spell data and act on the URL
         tryLoadDefaultSpells();

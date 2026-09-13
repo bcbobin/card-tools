@@ -4,16 +4,17 @@
 Downloads spell data from the 5etools GitHub repository and converts
 it to the format used by the Spell Card Generator.
 
-5etools has the most complete D&D 5e spell database, covering every
-official WotC sourcebook including the 2024 PHB (XPHB).
+5etools has a complete D&D spell database. By default this converter imports
+every official core and supplemental source in its spell index, including
+future releases, while omitting playtest material. Current-rule versions win
+when spell names overlap.
 
 Usage:
     cd scraper
     pip install -r requirements.txt
-    python convert_5etools.py                        # All sources
-    python convert_5etools.py --sources PHB XGE TCE  # Specific books
-    python convert_5etools.py --sources XPHB         # 2024 PHB only
-    python convert_5etools.py --list-sources         # Show available sources
+    python convert_5etools.py                     # Default compatible sources
+    python convert_5etools.py --sources XPHB XGE  # Specific books
+    python convert_5etools.py --list-sources      # Show available sources
 
 Output:
     spells_5etools.json  - Spell database
@@ -49,6 +50,25 @@ SPELL_CLASSES = [
     "Ranger", "Sorcerer", "Warlock", "Wizard"
 ]
 
+CURRENT_RULES_SOURCES = {"XPHB", "EFA", "FRHoF"}
+NON_OFFICIAL_SOURCE_CODES = {"AU"}
+NON_OFFICIAL_SOURCE_PREFIXES = ("UA",)
+
+
+def is_official_source_code(source_code: str) -> bool:
+    """Return whether a 5etools spell-index source is published material."""
+    normalized = source_code.upper()
+    return (
+        bool(normalized)
+        and normalized not in NON_OFFICIAL_SOURCE_CODES
+        and not normalized.startswith(NON_OFFICIAL_SOURCE_PREFIXES)
+    )
+
+
+def get_default_source_codes(index: dict[str, str]) -> list[str]:
+    """Include every current and future official source in the remote index."""
+    return sorted(code for code in index if is_official_source_code(code))
+
 
 def fetch_json(url: str) -> dict:
     """Fetch and parse JSON from a URL."""
@@ -70,8 +90,13 @@ def clean_tags(text: str) -> str:
         # For scaledamage, the first part is the base damage
         return parts[0]
 
-    text = re.sub(r"\{@\w+ ([^}]+)\}", replace_tag, text)
-    return text
+    # Tags can be nested (for example, a note containing a filter), so strip
+    # innermost tags first and repeat until no tag remains.
+    tag_pattern = r"\{@\w+ ([^{}]*)\}"
+    while True:
+        text, replacements = re.subn(tag_pattern, replace_tag, text)
+        if replacements == 0:
+            return text
 
 
 def convert_time(time_data: list) -> str:
@@ -259,7 +284,7 @@ def convert_entries(entries: list) -> str:
 def normalize_spell_ref(ref: str) -> str:
     """Normalize a 5etools spell reference to a plain spell name.
 
-    'mind sliver|tce#c' -> 'mind sliver'
+    'mind sliver|xphb#c' -> 'mind sliver'
     'charm person|xphb' -> 'charm person'
     'faerie fire' -> 'faerie fire'
     """
@@ -300,6 +325,8 @@ def build_subclass_map() -> dict[str, set[str]]:
 
         sc_with_spells = 0
         for sc in subclasses:
+            if sc.get("source") not in CURRENT_RULES_SOURCES:
+                continue
             additional = sc.get("additionalSpells")
             if not additional:
                 continue
@@ -399,19 +426,35 @@ def convert_spell(raw: dict, class_map: dict, subclass_map: dict[str, set[str]] 
         if sc_labels:
             result["subclasses"] = sorted(sc_labels)
 
-    # SRD flags (used by generate_srd_json.py)
-    if raw.get("srd"):
-        result["srd"] = True
+    # SRD 5.2 flag (used by generate_srd_json.py)
     if raw.get("srd52"):
         result["srd52"] = True
 
     return result
 
 
+def deduplicate_spells(spells: list[dict]) -> list[dict]:
+    """Keep one version per spell name, preferring current-rules sources."""
+    selected: dict[str, dict] = {}
+    for spell in spells:
+        key = spell.get("name", "").casefold()
+        existing = selected.get(key)
+        if existing is None:
+            selected[key] = spell
+            continue
+
+        existing_is_current = existing.get("source") in CURRENT_RULES_SOURCES
+        candidate_is_current = spell.get("source") in CURRENT_RULES_SOURCES
+        if candidate_is_current and not existing_is_current:
+            selected[key] = spell
+
+    return list(selected.values())
+
+
 def main():
     parser = argparse.ArgumentParser(description="Convert 5etools spell data")
     parser.add_argument("--sources", nargs="+", default=None,
-                        help="Source books to include (e.g. PHB XGE TCE XPHB)")
+                        help="Source books to include (e.g. XPHB XGE TCE)")
     parser.add_argument("--list-sources", action="store_true",
                         help="List available source books and exit")
     args = parser.parse_args()
@@ -427,11 +470,16 @@ def main():
     if args.list_sources:
         print(f"\nAvailable sources ({len(index)}):")
         for code, filename in sorted(index.items()):
-            print(f"  {code:15s} -> {filename}")
+            default = " (default)" if is_official_source_code(code) else " (excluded playtest)"
+            print(f"  {code:15s} -> {filename}{default}")
         return
 
-    # Filter sources
-    source_codes = args.sources if args.sources else list(index.keys())
+    source_codes = args.sources if args.sources else get_default_source_codes(index)
+    unknown_sources = sorted(set(source_codes) - set(index))
+    if unknown_sources:
+        parser.error(f"Unknown source(s): {', '.join(unknown_sources)}")
+
+    # Fetch selected sources.
     print(f"Sources: {', '.join(source_codes)}")
 
     # Fetch class mapping
@@ -458,6 +506,10 @@ def main():
             all_spells.append(spell)
 
         print(f"    {len(raw_spells)} spells")
+
+    # Prefer 2024 versions of reprinted spells and avoid ambiguous duplicate
+    # names in the UI, which identifies selected spells by name.
+    all_spells = deduplicate_spells(all_spells)
 
     # Sort by level, then name
     all_spells.sort(key=lambda s: (s.get("level", 0), s.get("name", "")))
